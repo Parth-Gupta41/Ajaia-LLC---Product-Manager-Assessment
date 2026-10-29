@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SidelineReel Roster Check</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Prototype of the roster-tagging confidence gate: coach review, family view and gate tuning on a sample game.">
+<style>
+/* Layout: translucent top bar with a three-way segmented control (Coach, Family, Gate).
+   Coach and Family render as a phone screen beside a guide column; Gate is a wide PM/ops page.
+   Product UI lives inside the screen; demo controls (viewing-as, reset) live outside it. */
+:root{
+  --page:#fbfbfd; --screen:#f2f2f7; --cell:#ffffff; --sheet:#f2f2f7;
+  --label:#1d1d1f; --label-2:#6e6e73; --sep:rgba(60,60,67,.2);
+  --fill:rgba(118,118,128,.12); --fill-2:rgba(118,118,128,.3); --ring:rgba(0,0,0,.07);
+  --material:rgba(251,251,253,.72); --seg-thumb:#ffffff;
+  --tint:#c4470f; --tint-ink:#ffffff; --tint-text:#b8420d; --tint-soft:rgba(232,89,26,.12);
+  --green-text:#1b7a35; --green-soft:rgba(52,199,89,.15); --green-fill:#34c759;
+  --orange-text:#9a5300; --orange-soft:rgba(255,149,0,.16); --orange-fill:#ff9500;
+  --red-text:#c4001a; --red-soft:rgba(255,59,48,.12); --gray-fill:#8e8e93;
+  --hud:rgba(29,29,31,.88); --hud-ink:#ffffff; --hud-tint:#ffa36b;
+  --navy:#1d3346; --field:#4f8a55; --field2:#5a9660; --kit:#1d3346; --kitnum:#ffffff; --mud:#6b4a2b;
+  --device-shadow:0 0 0 1px var(--ring),0 30px 60px -30px rgba(0,0,0,.28);
+  --ease-out:cubic-bezier(0.23,1,0.32,1); --ease-drawer:cubic-bezier(0.32,0.72,0,1);
+  --f:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,"Segoe UI",Roboto,sans-serif;
+  --f-jersey:"Avenir Next Condensed","Arial Narrow","Roboto Condensed",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --page:#0e0e10; --screen:#000000; --cell:#1c1c1e; --sheet:#1c1c1e;
+  --label:#f5f5f7; --label-2:#a1a1a6; --sep:rgba(84,84,88,.6);
+  --fill:rgba(118,118,128,.24); --fill-2:rgba(118,118,128,.45); --ring:rgba(255,255,255,.1);
+  --material:rgba(14,14,16,.72); --seg-thumb:#636366;
+  --tint:#ff8a4c; --tint-ink:#1f0c02; --tint-text:#ff9a62; --tint-soft:rgba(255,138,76,.16);
+  --green-text:#30d158; --green-soft:rgba(48,209,88,.18); --green-fill:#30d158;
+  --orange-text:#ffb340; --orange-soft:rgba(255,159,10,.18); --orange-fill:#ff9f0a;
+  --red-text:#ff6961; --red-soft:rgba(255,69,58,.18); --gray-fill:#636366;
+  --hud:rgba(58,58,60,.9); --hud-ink:#ffffff; --hud-tint:#ff9a62;
+  --navy:#9cc3e4; --field:#2f5a35; --field2:#36653c; --kit:#203a50; --kitnum:#f1f5f8; --mud:#5a3f25;
+  --device-shadow:0 0 0 1px var(--ring),0 30px 60px -30px rgba(0,0,0,.8);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#0e0e10; --screen:#000000; --cell:#1c1c1e; --sheet:#1c1c1e;
+  --label:#f5f5f7; --label-2:#a1a1a6; --sep:rgba(84,84,88,.6);
+  --fill:rgba(118,118,128,.24); --fill-2:rgba(118,118,128,.45); --ring:rgba(255,255,255,.1);
+  --material:rgba(14,14,16,.72); --seg-thumb:#636366;
+  --tint:#ff8a4c; --tint-ink:#1f0c02; --tint-text:#ff9a62; --tint-soft:rgba(255,138,76,.16);
+  --green-text:#30d158; --green-soft:rgba(48,209,88,.18); --green-fill:#30d158;
+  --orange-text:#ffb340; --orange-soft:rgba(255,159,10,.18); --orange-fill:#ff9f0a;
+  --red-text:#ff6961; --red-soft:rgba(255,69,58,.18); --gray-fill:#636366;
+  --hud:rgba(58,58,60,.9); --hud-ink:#ffffff; --hud-tint:#ff9a62;
+  --navy:#9cc3e4; --field:#2f5a35; --field2:#36653c; --kit:#203a50; --kitnum:#f1f5f8; --mud:#5a3f25;
+  --device-shadow:0 0 0 1px var(--ring),0 30px 60px -30px rgba(0,0,0,.8);
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--label);font:17px/1.47 var(--f);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+h1,h2,h3,p{margin:0}
+button,select,input{font:inherit;color:inherit}
+button{-webkit-user-select:none;user-select:none;touch-action:manipulation;cursor:pointer}
+:focus-visible{outline:3px solid var(--tint);outline-offset:2px}
+[hidden]{display:none!important}
+.num-t{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Top bar: a translucent material; the hairline appears only once content scrolls under it */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:21;background:var(--page)}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--material);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));box-shadow:0 .5px 0 transparent;transition:box-shadow 200ms ease}
+.bar.edge{box-shadow:0 .5px 0 var(--sep)}
+.bar-in{max-width:1080px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.mark{width:32px;height:32px;border-radius:8px;background:#1d3346;display:grid;place-items:center;flex:none}
+.mark svg{width:18px;height:18px}
+.brand h1{font-size:17px;font-weight:600;letter-spacing:-.012em;line-height:1.2}
+.brand p{font-size:12px;color:var(--label-2);letter-spacing:.01em;line-height:1.3}
+.seg{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:var(--fill);border-radius:9px;padding:2px;width:300px}
+.seg button{position:relative;z-index:1;border:0;background:none;padding:6px 12px;font-size:13px;font-weight:500;border-radius:7px;min-height:32px}
+.seg button[aria-current="page"]{font-weight:600}
+.seg-ind{position:absolute;top:2px;bottom:2px;left:2px;width:calc((100% - 4px)/3);background:var(--seg-thumb);border-radius:7px;
+  box-shadow:0 3px 8px rgba(0,0,0,.12),0 3px 1px rgba(0,0,0,.04);transform:translateX(calc(var(--i,0)*100%))}
+@media (max-width:640px){.seg{width:100%}}
+
+.page{max-width:1080px;margin:0 auto;padding:28px max(16px,env(safe-area-inset-right,0px)) calc(56px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.stage{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:48px;align-items:start}
+@media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr);gap:28px}}
+
+/* The phone screen */
+.device{background:var(--screen);border-radius:40px;box-shadow:var(--device-shadow);overflow:hidden;width:100%;max-width:420px;justify-self:center;padding-bottom:28px}
+@media (max-width:860px){.device{border-radius:28px}}
+.screen{padding:0 16px}
+.navrow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;min-height:52px;margin:0 -8px;padding-top:6px}
+.navrow .mid{font-size:15px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+.navrow > :first-child{justify-self:start} .navrow > :last-child{justify-self:end}
+.text-btn{border:0;background:none;color:var(--tint-text);font-size:17px;padding:8px;border-radius:10px;display:inline-flex;align-items:center;gap:5px;min-height:44px}
+.text-btn svg{width:11px;height:19px;flex:none}
+.text-btn.strong{font-weight:600}
+
+.eyebrow{font-size:13px;color:var(--label-2);font-weight:500;letter-spacing:.005em}
+.title{font-size:34px;line-height:1.1;font-weight:700;letter-spacing:-.022em;margin:4px 0 10px;text-wrap:balance}
+.title:focus{outline:none}
+.lede{font-size:15px;line-height:1.45;color:var(--label-2)}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+.gh{font-size:13px;color:var(--label-2);text-transform:uppercase;letter-spacing:.03em;margin:26px 16px 7px;font-weight:400}
+.gf{font-size:13px;line-height:1.4;color:var(--label-2);margin:7px 16px 0}
+.group{background:var(--cell);border-radius:12px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:10px 16px;min-height:48px;position:relative;width:100%;text-align:left;border:0;background:none}
+.group > .row + .row::before,.group > * + .row::before{content:"";position:absolute;top:0;right:0;left:var(--inset,58px);border-top:.5px solid var(--sep)}
+.row .t{display:flex;flex-direction:column;min-width:0;flex:1}
+.row .t b{font-weight:500;font-size:17px;line-height:1.3}
+.row .t small{font-size:13px;line-height:1.35;color:var(--label-2)}
+.row .end{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none}
+.big{font-size:22px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;color:#fff}
+.ic svg{width:16px;height:16px}
+.ic.g{background:var(--green-fill)} .ic.o{background:var(--orange-fill)} .ic.n{background:var(--gray-fill)}
+
+.btn{display:flex;width:100%;justify-content:center;align-items:center;gap:8px;min-height:50px;border-radius:14px;border:0;font-size:17px;font-weight:600;background:var(--tint);color:var(--tint-ink);padding:0 18px}
+.btn.secondary{background:var(--tint-soft);color:var(--tint-text)}
+.btn.plain{background:var(--cell);color:var(--label)}
+.btn.small{min-height:36px;width:auto;font-size:15px;border-radius:999px;padding:0 14px}
+.btn:disabled{opacity:.4;cursor:default}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* Press feedback: on pointer-down, instant and small */
+.btn,.text-btn,.choice,.pill,.step,.mini,.seg button{transition:transform 160ms var(--ease-out)}
+.btn:active:not(:disabled),.pill:active,.mini:active,.step:active{transform:scale(.97)}
+.choice:active,.text-btn:active{transform:scale(.985)}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:4px 9px;border-radius:999px;letter-spacing:.01em;line-height:1.3}
+.chip.o{background:var(--orange-soft);color:var(--orange-text)} .chip.r{background:var(--red-soft);color:var(--red-text)} .chip.g{background:var(--green-soft);color:var(--green-text)} .chip.n{background:var(--fill);color:var(--label-2)}
+.pairs{display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px}
+.pairs span{font-family:var(--f-jersey);font-weight:700;font-size:17px;padding:3px 10px;border-radius:8px;background:var(--fill);letter-spacing:.01em}
+
+.shot{border-radius:18px;overflow:hidden;background:var(--field);aspect-ratio:16/10;position:relative}
+.shot svg{display:block;width:100%;height:100%}
+.thumb{width:84px;aspect-ratio:16/10;border-radius:8px;overflow:hidden;flex:none;background:var(--field)}
+.thumb svg{display:block;width:100%;height:100%}
+
+.pills{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 4px}
+.pills::-webkit-scrollbar{display:none}
+.pill{border:0;background:var(--fill);border-radius:999px;padding:0 11px;min-height:32px;font-size:13px;font-weight:500;display:inline-flex;gap:5px;align-items:center;font-variant-numeric:tabular-nums;flex:none;color:var(--label)}
+.pill svg{width:11px;height:11px}
+.pill.done{background:var(--green-soft);color:var(--green-text)}
+.pill.skip{background:var(--orange-soft);color:var(--orange-text)}
+.pill[aria-current="true"]{background:var(--label);color:var(--screen)}
+
+.choice{--inset:72px}
+.choice .jn{font-family:var(--f-jersey);font-weight:700;font-size:28px;line-height:1;width:44px;text-align:center;flex:none;font-variant-numeric:tabular-nums}
+.choice .tick{width:22px;height:22px;color:var(--tint-text);opacity:0}
+.choice[aria-pressed="true"] .tick{opacity:1}
+.choice[aria-pressed="true"] .jn{color:var(--tint-text)}
+.choice .chev{width:8px;height:14px;color:var(--label-2)}
+kbd{font:500 11px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--sep);border-radius:5px;padding:1px 6px;color:var(--label-2);display:none}
+.keys{display:none}
+@media (hover:hover) and (pointer:fine){kbd{display:inline-block}.keys{display:block}}
+
+.banner{border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.45}
+.banner.g{background:var(--green-soft);color:var(--green-text)} .banner.o{background:var(--orange-soft);color:var(--orange-text)}
+.banner b{font-weight:600}
+
+.player{--inset:66px}
+.player .badge{width:38px;height:38px;border-radius:50%;background:var(--kit);color:#fff;display:grid;place-items:center;font-family:var(--f-jersey);font-weight:700;font-size:18px;flex:none}
+.status{font-size:13px;font-weight:600}
+.status.g{color:var(--green-text)} .status.o{color:var(--orange-text)}
+
+.hero{position:relative}
+.hero .play{position:absolute;right:12px;bottom:12px;display:grid;pointer-events:none}
+.hero .play span{width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.32);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);display:grid;place-items:center}
+.hero .play svg{width:16px;height:16px;margin-left:2px}
+.clip-row{--inset:112px}
+.mini{border:0;background:var(--fill);color:var(--label);border-radius:999px;padding:0 12px;min-height:32px;font-size:13px;font-weight:600;flex:none}
+
+/* Guide column */
+.guide{position:sticky;top:96px;display:flex;flex-direction:column;gap:22px;padding-top:6px;min-width:0}
+@media (max-width:860px){.guide{position:static}}
+.guide h2{font-size:28px;line-height:1.15;font-weight:700;letter-spacing:-.018em;text-wrap:balance}
+.guide p{font-size:15px;line-height:1.5;color:var(--label-2);max-width:56ch}
+.steps{display:flex;flex-direction:column;gap:4px}
+.step{display:flex;align-items:center;gap:12px;border:0;background:none;text-align:left;padding:8px 10px;margin:0 -10px;border-radius:12px;font-size:15px;color:var(--label-2)}
+.step .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--fill);font-size:13px;font-weight:600;color:var(--label-2);flex:none;font-variant-numeric:tabular-nums}
+.step[aria-current="step"]{color:var(--label);font-weight:600}
+.step[aria-current="step"] .n{background:var(--tint);color:var(--tint-ink)}
+@media (hover:hover) and (pointer:fine){.step:hover{background:var(--fill)}}
+.try{background:var(--cell);border-radius:18px;padding:18px 20px;box-shadow:0 0 0 1px var(--ring);display:flex;flex-direction:column;gap:8px}
+.try .eyebrow{color:var(--tint-text);font-weight:600}
+.try p{color:var(--label);font-size:15px}
+.try .keys{font-size:13px;color:var(--label-2)}
+.demo{display:flex;flex-direction:column;gap:8px}
+.demo label{font-size:13px;color:var(--label-2)}
+.select{appearance:none;-webkit-appearance:none;background:var(--cell) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238e8e93' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center;
+  border:0;box-shadow:0 0 0 1px var(--ring);border-radius:12px;padding:12px 40px 12px 14px;font-size:16px;width:100%;max-width:320px}
+.fine{font-size:13px!important;line-height:1.45;color:var(--label-2)}
+.fine button{border:0;background:none;color:var(--tint-text);padding:0;font-size:13px;font-weight:600}
+
+/* Gate page */
+.gate{display:flex;flex-direction:column;gap:28px}
+.gate-head{display:flex;flex-direction:column;gap:10px;max-width:68ch}
+.gate-head h2{font-size:40px;line-height:1.08;font-weight:700;letter-spacing:-.025em}
+.gate-head p{font-size:17px;color:var(--label-2)}
+.gate-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:820px){.gate-grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--cell);border-radius:18px;box-shadow:0 0 0 1px var(--ring);overflow:hidden}
+.slider{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:16px 18px;position:relative}
+.slider + .slider::before{content:"";position:absolute;top:0;left:18px;right:0;border-top:.5px solid var(--sep)}
+.slider label{font-weight:600;font-size:16px}
+.slider output{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--tint-text)}
+.slider input{grid-column:1/-1;width:100%;accent-color:var(--tint);height:28px;margin:4px 0}
+.slider small{grid-column:1/-1;color:var(--label-2);font-size:13px;line-height:1.4}
+.card-foot{padding:12px 18px 16px;display:flex;justify-content:flex-start}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.tile{background:var(--cell);border-radius:16px;box-shadow:0 0 0 1px var(--ring);padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile .dot{width:8px;height:8px;border-radius:50%;margin-bottom:6px}
+.tile b{font-size:36px;line-height:1.05;font-weight:700;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+.tile span{font-size:13px;color:var(--label-2)}
+.gate-out{display:flex;flex-direction:column;gap:12px}
+.bars{padding:6px 0}
+.bar-row{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr) 22px;gap:14px;align-items:center;font-size:15px;padding:7px 18px}
+.bar-row .track{height:8px;border-radius:4px;background:var(--fill);overflow:hidden}
+.bar-row .fill{height:100%;width:100%;background:var(--tint);transform-origin:left center}
+.bar-row .c{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.bar-row.zero{color:var(--red-text);font-weight:600}
+.bar-row.zero .c{color:var(--red-text)}
+@media (max-width:520px){.bar-row{grid-template-columns:minmax(0,118px) minmax(0,1fr) 20px;gap:10px;font-size:14px}.tile b{font-size:30px}.gate-head h2{font-size:32px}}
+.card-title{font-size:17px;font-weight:600;padding:16px 18px 4px}
+
+footer{max-width:1080px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-right,0px)) calc(28px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));font-size:12px;line-height:1.5;color:var(--label-2)}
+
+/* HUD toast: enters from the bottom and leaves the same way */
+.hud{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:60;display:flex;align-items:center;gap:6px;padding:8px 8px 8px 18px;border-radius:999px;
+  background:var(--hud);color:var(--hud-ink);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);box-shadow:0 12px 32px rgba(0,0,0,.22);
+  font-size:15px;font-weight:500;width:max-content;max-width:calc(100% - 32px);transform:translate(-50%,calc(100% + 40px));opacity:0;pointer-events:none;
+  transition:transform 320ms var(--ease-drawer),opacity 200ms var(--ease-out)}
+.hud.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+.hud span{padding:6px 0}
+.hud button{background:rgba(255,255,255,.12);border:0;color:var(--hud-tint);font-weight:600;font-size:15px;padding:6px 14px;border-radius:999px;min-height:34px;flex:none}
+
+/* Roster sheet */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.36);z-index:40;opacity:0}
+.sheet{position:fixed;left:0;right:0;bottom:0;margin:0 auto;width:100%;max-width:520px;z-index:50;background:var(--sheet);border-radius:16px 16px 0 0;
+  max-height:80vh;max-height:80dvh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);box-shadow:0 -10px 40px rgba(0,0,0,.22);will-change:transform}
+.grab{padding:8px 0 2px;display:grid;place-items:center;cursor:grab;touch-action:none}
+.grab:active{cursor:grabbing}
+.grabber{width:36px;height:5px;border-radius:3px;background:var(--fill-2)}
+.sheet-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 8px 6px;touch-action:none}
+.sheet-head h2{font-size:17px;font-weight:600;text-align:center}
+.sheet-head > :last-child{justify-self:end}
+.sheet-list{overflow:auto;padding:4px 16px 20px;overscroll-behavior:contain}
+.sheet .choice{--inset:72px}
+
+@media (prefers-reduced-motion: reduce){
+  .seg-ind,.btn,.text-btn,.choice,.pill,.step,.mini{transition:none}
+  .btn:active:not(:disabled),.pill:active,.mini:active,.step:active,.choice:active,.text-btn:active{transform:none}
+  .hud{transform:translate(-50%,0);transition:opacity 200ms ease}
+}
+@media (prefers-reduced-motion: no-preference){.seg-ind{transition:transform 240ms var(--ease-out)}}
+@media (prefers-reduced-transparency: reduce){
+  .bar{background:var(--page);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:0 .5px 0 var(--sep)}
+  .hud{background:#1d1d1f;-webkit-backdrop-filter:none;backdrop-filter:none}
+  .hero .play span{background:rgba(0,0,0,.6);-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+@media (prefers-contrast: more){
+  :root{--sep:rgba(60,60,67,.5);--ring:rgba(0,0,0,.35);--label-2:#4a4a4f}
+  .bar{background:var(--page);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:0 1px 0 var(--label-2)}
+}
+</style>
+</head><body>
+
+<header class="bar" id="bar">
+ <div class="bar-in">
+  <div class="brand">
+   <span class="mark" aria-hidden="true"><svg viewBox="0 0 18 18"><rect x="1.5" y="3" width="15" height="12" rx="3" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="1.6"/><path d="M7.5 6.6v4.8L11.6 9z" fill="#ff7a3d"/></svg></span>
+   <div><h1>Roster Check</h1><p>SidelineReel · confidence gate prototype</p></div>
+  </div>
+  <nav class="seg" id="seg" aria-label="Prototype views">
+   <span class="seg-ind" aria-hidden="true"></span>
+   <button data-tab="coach">Coach</button><button data-tab="family">Family</button><button data-tab="gate">Gate</button>
+  </nav>
+ </div>
+</header>
+
+<main class="page" id="main"></main>
+
+<footer>Built for the Ajaia SidelineReel PM assessment. Sample game: Ridgeline U12 Girls vs Hawthorn FC. All players, footage and scores are invented examples. Confidence values are a fixed sample so the demo is repeatable; "known wrong" counts use audit labels attached to the sample.</footer>
+
+<div class="hud" id="hud" role="status" aria-live="polite"><span id="hud-msg"></span><button id="hud-undo" type="button" hidden>Undo</button></div>
+
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+ <div class="grab" id="grab" aria-hidden="true"><span class="grabber"></span></div>
+ <div class="sheet-head" id="sheet-head"><span></span><h2 id="sheet-title">Someone else</h2><button class="text-btn" type="button" data-close>Cancel</button></div>
+ <div class="sheet-list" id="sheet-list"></div>
+</div>
+
+<script>
+const ROSTER=[
+ {n:1,name:"Ava Chen"},{n:3,name:"Zoe Adams"},{n:4,name:"Elena Silva"},{n:5,name:"Nora Kim"},
+ {n:6,name:"Ruby Patel"},{n:7,name:"Priya Nair"},{n:8,name:"Isla Grant"},{n:9,name:"Jordan Lee"},
+ {n:11,name:"Sofia Marino"},{n:12,name:"Hana Okafor"},{n:14,name:"Maya Brooks"},{n:21,name:"Lucy Tran"}];
+// read = number the model read, conf = model confidence, truth = audit label, q = footage quality (0 clean .. 3 poor)
+const CLIPS=[
+ {id:1,min:"04:10",ev:"Goal",read:9,conf:.97,truth:9,q:0},
+ {id:2,min:"07:45",ev:"Save",read:3,conf:.95,truth:3,q:0},
+ {id:3,min:"11:20",ev:"Assist",read:7,conf:.96,truth:7,q:0},
+ {id:4,min:"13:05",ev:"Tackle",read:5,conf:.93,truth:5,q:1},
+ {id:5,min:"16:40",ev:"Shot on goal",read:8,conf:.94,truth:8,q:0},
+ {id:6,min:"19:15",ev:"Save",read:3,conf:.93,truth:3,q:1},
+ {id:7,min:"22:30",ev:"Breakaway",read:9,conf:.92,truth:9,q:1},
+ {id:8,min:"25:50",ev:"Goal",read:7,conf:.91,truth:7,q:1},
+ {id:9,min:"28:10",ev:"Block",read:5,conf:.95,truth:5,q:0},
+ {id:10,min:"31:00",ev:"Cross",read:8,conf:.92,truth:8,q:1},
+ {id:11,min:"33:40",ev:"Goal",read:14,conf:.98,truth:14,q:0},
+ {id:12,min:"36:25",ev:"Interception",read:11,conf:.98,truth:11,q:0},
+ {id:13,min:"38:50",ev:"Shot on goal",read:12,conf:.97,truth:12,q:0,alt:21},
+ {id:14,min:"41:15",ev:"Assist",read:21,conf:.99,truth:21,q:0},
+ {id:15,min:"44:00",ev:"Tackle",read:4,conf:.98,truth:4,q:0},
+ {id:16,min:"46:30",ev:"Clearance",read:1,conf:.97,truth:1,q:0},
+ {id:17,min:"49:10",ev:"Dribble past defender",read:14,conf:.97,truth:4,q:2,alt:4},
+ {id:18,min:"52:45",ev:"Header",read:11,conf:.98,truth:11,q:0},
+ {id:19,min:"55:20",ev:"Goal",read:14,conf:.71,truth:4,q:3,alt:4},
+ {id:20,min:"58:05",ev:"Breakaway",read:11,conf:.82,truth:1,q:2,alt:1},
+ {id:21,min:"60:40",ev:"Shot on goal",read:21,conf:.88,truth:21,q:2,alt:12},
+ {id:22,min:"09:30",ev:"Corner kick",read:6,conf:.52,truth:6,q:3},
+ {id:23,min:"18:00",ev:"Throw-in",read:6,conf:.44,truth:6,q:3},
+ {id:24,min:"27:20",ev:"Tackle",read:9,conf:.38,truth:8,q:3},
+ {id:25,min:"35:10",ev:"Pass",read:12,conf:.57,truth:12,q:3},
+ {id:26,min:"43:45",ev:"Shot",read:3,conf:.31,truth:5,q:3},
+ {id:27,min:"50:30",ev:"Clearance",read:1,conf:.48,truth:11,q:3},
+ {id:28,min:"57:15",ev:"Save",read:3,conf:.55,truth:3,q:3}];
+const DEFAULTS={auto:.90,autoConf:.97,floor:.60};
+const fresh=()=>({tab:"coach",screen:"summary",t:{...DEFAULTS},decisions:{},reported:{},blocked:{},qi:0,kid:14});
+let S=fresh();
+const SCREENS=["summary","review","sent"];
+const reduce=matchMedia("(prefers-reduced-motion: reduce)");
+const $=id=>document.getElementById(id);
+
+const kid=n=>ROSTER.find(r=>r.n===n);
+const first=k=>k.name.split(" ")[0];
+const confusable=(a,b)=>{if(a===b)return false;const x=String(a),y=String(b);
+  if(x.length!==y.length){const L=x.length>y.length?x:y,s=x.length>y.length?y:x;return L.includes(s)}
+  return x===[...y].reverse().join("")};
+const partners=n=>ROSTER.filter(r=>confusable(n,r.n)).map(r=>r.n);
+const isConf=n=>partners(n).length>0;
+const pct=v=>Math.round(v*100)+"%";
+const plural=(n,w)=>`${n} ${w}${n===1?"":"s"}`;
+const PAIRS=[...new Set(ROSTER.flatMap(r=>partners(r.n).filter(p=>p>r.n).map(p=>`#${r.n} / #${p}`)))];
+
+// Gate logic, as specified: auto / review / unnamed
+function baseTier(c,t=S.t){const bar=isConf(c.read)?t.autoConf:t.auto;return c.conf>=bar?"auto":c.conf>=t.floor?"review":"drop"}
+// A family report pulls a clip back into review and keeps it there, so the coach's fix sticks
+function tier(c){return S.reported[c.id]?"review":baseTier(c)}
+function assigned(c){const tr=tier(c);if(tr==="auto")return c.read;
+  if(tr==="review"){const d=S.decisions[c.id];return typeof d==="number"?d:null}return null}
+function stats(t=S.t){let a=0,r=0,d=0,wrong=0;const per={};ROSTER.forEach(k=>per[k.n]=0);
+  CLIPS.forEach(c=>{const tr=baseTier(c,t);if(tr==="auto"){a++;per[c.read]++;if(c.truth!==c.read)wrong++}else if(tr==="review")r++;else d++});
+  return{a,r,d,wrong,per,zero:ROSTER.filter(k=>per[k.n]===0)}}
+const byMin=(x,y)=>x.min.localeCompare(y.min);
+const queue=()=>CLIPS.filter(c=>tier(c)==="review").sort(byMin);
+const isDecided=c=>{const d=S.decisions[c.id];return typeof d==="number"||d==="none"};
+const ruledOut=c=>ROSTER.filter(k=>S.blocked[c.id+"-"+k.n]);
+function reelFor(n){return CLIPS.filter(c=>assigned(c)===n&&!S.blocked[c.id+"-"+n]).sort(byMin)}
+
+// Illustrated frame: a player from behind; blur, mud and a smeared digit come from footage quality
+let FID=0;
+function frame(c,w=480,h=300,stamp=true){
+  const id="f"+(++FID),u=h/300,cx=w/2,blur=[0,.9,2,3.4][c.q]*u,s=String(c.truth);
+  const smear=String(c.read).length>s.length?`<rect x="${cx-62*u}" y="${h*.36}" width="${16*u}" height="${h*.26}" rx="${6*u}" fill="var(--kitnum)" opacity=".55" filter="url(#${id})"/>`:"";
+  const mud=c.q>=2?`<ellipse cx="${cx+28*u}" cy="${h*.58}" rx="${40*u}" ry="${16*u}" fill="var(--mud)" opacity=".78"/><ellipse cx="${cx-20*u}" cy="${h*.44}" rx="${22*u}" ry="${9*u}" fill="var(--mud)" opacity=".55"/>`:"";
+  const stripes=[0,1,2,3,4,5].map(i=>`<rect x="${i*w/6}" width="${w/12}" height="${h}" fill="var(--field2)"/>`).join("");
+  const ts=stamp?`<rect x="${10*u}" y="${h-34*u}" width="${62*u}" height="${24*u}" rx="${12*u}" fill="#000" opacity=".38"/><text x="${41*u}" y="${h-17.5*u}" text-anchor="middle" font-family="-apple-system,system-ui,sans-serif" font-weight="600" font-size="${13*u}" fill="#fff">${c.min}</text>`:"";
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Frame at ${c.min}: player from behind, jersey number ${c.q>=2?"partly obscured":"visible"}">
+  <defs><filter id="${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="${blur}"/></filter>
+   <radialGradient id="${id}v" cx="50%" cy="45%" r="75%"><stop offset="60%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".35"/></radialGradient></defs>
+  <rect width="${w}" height="${h}" fill="var(--field)"/>${stripes}
+  <line x1="0" y1="${h*.86}" x2="${w}" y2="${h*.8}" stroke="#fff" stroke-opacity=".55" stroke-width="${3*u}"/>
+  <g filter="url(#${id})">
+   <circle cx="${cx}" cy="${h*.2}" r="${h*.08}" fill="var(--mud)" opacity=".9"/>
+   <rect x="${cx-70*u}" y="${h*.29}" width="${140*u}" height="${h*.42}" rx="${18*u}" fill="var(--kit)"/>
+   <rect x="${cx-58*u}" y="${h*.7}" width="${116*u}" height="${h*.14}" rx="${8*u}" fill="var(--kit)" opacity=".85"/>
+   <text x="${cx+(s.length>1?0:6*u)}" y="${h*.6}" text-anchor="middle" font-family="Avenir Next Condensed,Arial Narrow,sans-serif" font-weight="700" font-size="${h*.28}" fill="var(--kitnum)">${s}</text>
+  </g>${smear}${mud}<rect width="${w}" height="${h}" fill="url(#${id}v)"/>${ts}</svg>`}
+
+const I={
+ back:'<svg viewBox="0 0 11 19" aria-hidden="true"><path d="M9.5 1.5L2 9.5l7.5 8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ check:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 8.4l3 3L12.8 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ q:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.6 5.6a2.5 2.5 0 1 1 3.6 2.3c-.8.4-1.2.9-1.2 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="12.6" r="1.2" fill="currentColor"/></svg>',
+ dash:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+ tick:'<svg class="tick" viewBox="0 0 22 22" aria-hidden="true"><path d="M5 11.5l4 4L17 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ chev:'<svg class="chev" viewBox="0 0 8 14" aria-hidden="true"><path d="M1.5 1.5L6.5 7l-5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ person:'<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="vertical-align:middle"><circle cx="12" cy="8.5" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 19.5c1.2-3.3 3.8-5 7-5s5.8 1.7 7 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+ play:'<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3.2v13.6L16.5 10z" fill="#fff"/></svg>'};
+
+const nav=(back,mid,act="")=>!back&&!mid&&!act?`<div style="height:22px"></div>`:`<div class="navrow">${back?`<button class="text-btn" data-go="${back[0]}">${I.back}${back[1]}</button>`:"<span></span>"}<div class="mid">${mid}</div>${act||"<span></span>"}</div>`;
+
+/* ---------- Coach screens ---------- */
+const Coach={};
+Coach.summary=()=>{const q=queue(),left=q.filter(c=>!isDecided(c)).length;
+ const a=CLIPS.filter(c=>tier(c)==="auto").length,d=CLIPS.filter(c=>tier(c)==="drop").length;
+ return `${nav(null,"")}
+ <p class="eyebrow">Saturday · Ridgeline U12 Girls vs Hawthorn FC</p>
+ <h2 class="title" tabindex="-1">${left?`${plural(left,"clip")} need${left===1?"s":""} you`:"Every clip is decided"}</h2>
+ <p class="lede">${CLIPS.length} highlight clips found. Reels send <b style="color:var(--label);font-weight:600">Sunday 9:00 AM</b>. Anything you haven't checked by then is left out, and every reel still goes on time.</p>
+ <div style="margin-top:20px">${left?`<button class="btn" data-go="review">Review ${plural(left,"clip")}</button>`:`<button class="btn" data-go="sent">Continue to send</button>`}</div>
+ <h3 class="gh">How the gate sorted them</h3>
+ <div class="group">
+  <div class="row"><span class="ic g">${I.check}</span><span class="t"><b>Auto-assigned</b><small>Jersey read with high confidence. Straight into kids' reels.</small></span><span class="end big">${a}</span></div>
+  <div class="row"><span class="ic o">${I.q}</span><span class="t"><b>Need your eyes</b><small>Model isn't sure which kid. About 30 seconds each.</small></span><span class="end big">${q.length}</span></div>
+  <div class="row"><span class="ic n">${I.dash}</span><span class="t"><b>Not named</b><small>Too unclear to name. Used in the team recap without a name.</small></span><span class="end big">${d}</span></div>
+ </div>
+ <h3 class="gh">Look-alike numbers on your roster</h3>
+ <div class="group"><div class="pairs">${PAIRS.map(p=>`<span>${p}</span>`).join("")}</div></div>
+ <p class="gf">These need ${pct(S.t.autoConf)} instead of ${pct(S.t.auto)} before auto-assigning, because they're the mix-ups families report. <button class="text-btn" style="font-size:13px;min-height:0;padding:0;font-weight:600" data-tab="gate">Why these numbers?</button></p>`};
+
+Coach.review=()=>{const q=queue();
+ if(!q.length)return `${nav(["summary","Summary"],"")}<h2 class="title" tabindex="-1">Nothing to review</h2><p class="lede">Every clip is either confident or left unnamed.</p><div style="margin-top:20px"><button class="btn" data-go="sent">Continue to send</button></div>`;
+ S.qi=Math.min(S.qi,q.length-1);const c=q[S.qi],d=S.decisions[c.id];
+ const guess=kid(c.read),alt=kid(c.alt!==undefined?c.alt:partners(c.read)[0]);
+ const opts=[guess,alt].filter((k,i,arr)=>k&&arr.indexOf(k)===i&&!S.blocked[c.id+"-"+k.n]);
+ const other=typeof d==="number"&&!opts.some(k=>k.n===d)?kid(d):null;
+ const out=ruledOut(c),decided=q.filter(isDecided).length;
+ return `${nav(["summary","Summary"],`Clip ${S.qi+1} of ${q.length}`,`<button class="text-btn strong" data-go="sent">Send</button>`)}
+ <div class="pills" role="group" aria-label="Clips to review">${q.map((x,i)=>{const dx=S.decisions[x.id],done=typeof dx==="number"||dx==="none",sk=dx==="skip";
+   return `<button class="pill ${done?"done":sk?"skip":""}" data-qi="${i}" aria-current="${i===S.qi}" aria-label="Clip ${i+1}, ${x.min}${done?", decided":sk?", skipped":""}">${done?I.check:""}${x.min}</button>`}).join("")}</div>
+ <div class="stack" style="margin-top:10px">
+  <div class="shot">${frame(c)}</div>
+  <div class="chips">${out.length?`<span class="chip r">Family report: not ${out.map(first).join(" or ")}</span>`:""}${isConf(c.read)?`<span class="chip o">#${c.read} looks like ${partners(c.read).map(n=>"#"+n).join(", ")}</span>`:""}<span class="chip n num-t">Model ${pct(c.conf)} sure</span></div>
+  <div><h2 class="title" tabindex="-1" style="font-size:28px;margin:0">${c.ev} at ${c.min}</h2><p class="lede" style="margin-top:4px">Who is this? Mud and motion blur cover part of the number. Your answer only changes this one clip.</p></div>
+ </div>
+ <div class="group" style="margin-top:16px">
+  ${opts.map((k,i)=>`<button class="row choice" data-pick="${k.n}" aria-pressed="${d===k.n}"><span class="jn">${k.n}</span><span class="t"><b>${k.name}</b>${k.n===c.read?`<small>Model's guess</small>`:k.n===c.alt?`<small>Look-alike on your roster</small>`:""}</span><span class="end"><kbd>${i+1}</kbd>${I.tick}</span></button>`).join("")}
+  <button class="row choice" data-sheet aria-pressed="${!!other}" aria-haspopup="dialog"><span class="jn" style="color:var(--label-2)">${other?`<span style="color:var(--tint-text)">${other.n}</span>`:I.person}</span><span class="t"><b>${other?other.name:"Someone else"}</b><small>${other?"Picked from the roster":"Anyone on the roster"}</small></span><span class="end">${other?I.tick:I.chev}</span></button>
+ </div>
+ <div class="btn-row" style="margin-top:12px">
+  <button class="btn plain" data-pick="none" aria-pressed="${d==="none"}" style="${d==="none"?"box-shadow:inset 0 0 0 2px var(--tint)":""}">Can't tell <kbd>N</kbd></button>
+  <button class="btn plain" data-pick="skip" style="color:var(--label-2)">Skip <kbd>S</kbd></button>
+ </div>
+ <p class="gf" style="margin-top:14px;text-align:center">${decided} of ${q.length} decided · skipped clips are left out of reels</p>
+ ${decided===q.length?`<div style="margin-top:14px"><button class="btn" data-go="sent">All decided · send reels</button></div>`:""}`};
+
+Coach.sent=()=>{const q=queue(),conf=q.filter(c=>typeof S.decisions[c.id]==="number").length,left=q.length-conf,auto=CLIPS.filter(c=>tier(c)==="auto").length;
+ return `${nav(["review","Review"],"")}
+ <p class="eyebrow">Sunday 9:00 AM</p>
+ <h2 class="title" tabindex="-1">Reels are out</h2>
+ <p class="banner g"><b>No reel went out with a clip below the confidence bar.</b> ${auto} auto-assigned, ${conf} confirmed by you, ${left} left out${left?" (not confirmed in time)":""}.</p>
+ <h3 class="gh">Your team</h3>
+ <div class="group">${ROSTER.map(k=>{const r=reelFor(k.n);return `<div class="row player"><span class="badge">${k.n}</span><span class="t"><b>${k.name}</b>${r.length?`<small>${plural(r.length,"clip")}</small>`:`<small>Family gets the team recap. You've been nudged to check ${first(k)}'s unnamed clips.</small>`}</span><span class="end status ${r.length?"g":"o"}">${r.length?"Reel sent":"Recap only"}</span></div>`}).join("")}</div>
+ <div style="margin-top:20px"><button class="btn secondary" data-tab="family" data-kid="14">See Maya's reel as her family</button></div>`};
+
+/* ---------- Family screen ---------- */
+function Family(){const k=kid(S.kid),r=reelFor(k.n),nm=first(k),reports=Object.keys(S.reported).length;
+ const best=[...r].sort((x,y)=>(typeof S.decisions[y.id]==="number"?1:y.conf)-(typeof S.decisions[x.id]==="number"?1:x.conf))[0];
+ const note=reports?`<p class="banner o" style="margin-top:20px">${plural(reports,"clip")} reported this week. ${reports===1?"It's":"They're"} back in the coach's queue with the kid ruled out.</p><div style="margin-top:10px"><button class="btn secondary" data-tab="coach" data-go="review" data-focus="${Object.keys(S.reported).at(-1)}">Open the coach's queue</button></div>`:"";
+ if(!r.length)return `${nav(null,"")}<p class="eyebrow">Ridgeline U12 Girls · this week</p><h2 class="title" tabindex="-1">No personal reel this week</h2>
+  <p class="lede">We didn't find a clip we were sure was ${nm}. Your family still gets the team recap, and the coach has been asked to check the unnamed clips.</p>${note}`;
+ return `${nav(null,"")}
+ <p class="eyebrow">Ridgeline U12 Girls · Saturday vs Hawthorn FC</p>
+ <h2 class="title" tabindex="-1">${nm}'s week</h2>
+ <div class="shot hero">${frame(best,480,300,false)}<div class="play"><span>${I.play}</span></div></div>
+ <h3 class="gh">${plural(r.length,"highlight")}</h3>
+ <div class="group" id="reel">${r.map(c=>`<div class="row clip-row" data-row="${c.id}"><span class="thumb">${frame(c,160,100,false)}</span><span class="t"><b>${c.ev}</b><small class="num-t">${c.min}</small></span><span class="end"><button class="mini" data-report="${c.id}" aria-label="Not my kid: remove ${c.ev} at ${c.min}">Not my kid</button></span></div>`).join("")}</div>
+ <p class="gf">The cover comes from the clip we're most sure about. See a clip that isn't ${nm}? Tap Not my kid and it's gone from this reel right away.</p>${note}`}
+
+/* ---------- Guide column (outside the product UI) ---------- */
+function Guide(){
+ const step=(i,id,label)=>`<button class="step" data-go="${id}" aria-current="${S.screen===id?"step":"false"}"><span class="n">${i}</span>${label}</button>`;
+ const reset=`<p class="fine">Everything here is computed live from a 28-clip sample game. <button data-reset>Reset demo</button></p>`;
+ if(S.tab==="family")return `<aside class="guide" aria-label="About this screen">
+  <div><p class="eyebrow">Family · after the reels send</p><h2 style="margin-top:6px">One tap fixes a wrong clip</h2></div>
+  <p>Families see only clips the gate was sure about or the coach confirmed. When the model is confidently wrong, the family is the backstop.</p>
+  <div class="try"><p class="eyebrow">Try this</p><p>Maya's reel still holds one wrong clip that auto-sent at 97%: the confident mistake a threshold can't catch alone. Tap <b>Not my kid</b> on the 49:10 dribble. It leaves the reel at once and goes back to the coach with Maya ruled out.</p></div>
+  <div class="demo"><label for="kidsel">Viewing as the family of</label><select id="kidsel" class="select">${ROSTER.map(x=>`<option value="${x.n}" ${x.n===S.kid?"selected":""}>#${x.n} ${x.name}</option>`).join("")}</select></div>
+  ${reset}</aside>`;
+ const copy={
+  summary:["The gate already sorted 28 clips","Sure clips go straight into reels, unsure ones come to the coach, and the rest are never named.","Look-alike pairs like #4 / #14 and #12 / #21 are computed from this roster, not a fixed list, so only those numbers get the stricter bar."],
+  review:["A 30-second check, not an editing job","Each card is one decision. The coach never holds up a reel; anything not decided by Sunday 9:00 AM is simply left out.","The 55:20 goal reads #14 at 71%, and there's mud beside a 4. Pick <b>Elena (#4)</b> over the model's guess, Maya (#14): that's the exact mix-up from the Ridgeline ticket. Then skip another clip to see it left out."],
+  sent:["Every reel goes on time","Nothing below the bar is included, whether or not the coach finished.","Ruby (#6) has no clip the gate is sure about, so her family gets the team recap instead of an empty reel, and the coach is nudged to check her unnamed clips."]}[S.screen];
+ return `<aside class="guide" aria-label="About this screen">
+  <nav class="steps" aria-label="Coach flow">${step(1,"summary","Game processed")}${step(2,"review","Coach review")}${step(3,"sent","Reels sent")}</nav>
+  <div><h2>${copy[0]}</h2><p style="margin-top:8px">${copy[1]}</p></div>
+  <div class="try"><p class="eyebrow">Try this</p><p>${copy[2]}</p>${S.screen==="review"?`<p class="keys">Keyboard: 1 or 2 to pick, N for can't tell, S to skip, ⌘Z to undo.</p>`:""}</div>
+  ${reset}</aside>`}
+
+/* ---------- Gate (PM and ops) ---------- */
+const SLIDERS=[["auto","Auto-assign bar","Numbers with no look-alike on the roster."],["autoConf","Auto-assign bar, look-alike numbers","Pairs like #4 / #14 and #1 / #11."],["floor","Review floor","Below this, the clip is never named."]];
+function Gate(){return `<section class="gate">
+ <div class="gate-head"><p class="eyebrow">PM and ops view</p><h2>Where to set the bar</h2>
+  <p>Move a bar and watch the trade. Higher bars send fewer wrong clips, but load the coach and leave more kids with nothing. Changes rerun the sample game; coach decisions on clips that stay in review are kept.</p></div>
+ <div class="try" style="max-width:68ch"><p class="eyebrow">Try this</p><p>Raise the look-alike bar from 0.97 to 0.98. Known wrong clips drop from 1 to 0, and coach review doubles from 3 to 6. That trade is the decision PM and ops own, and a person signs off on every change.</p></div>
+ <div class="gate-grid">
+  <div class="card">${SLIDERS.map(([k,l,h])=>`<div class="slider"><label for="s-${k}">${l}</label><output id="o-${k}" for="s-${k}"></output><input id="s-${k}" type="range" min="0.30" max="0.99" step="0.01" value="${S.t[k]}" data-k="${k}"><small>${h}</small></div>`).join("")}
+   <div class="card-foot"><button class="btn secondary small" data-defaults>Reset to spec defaults</button></div></div>
+  <div class="gate-out">
+   <div class="tiles"><div class="tile"><span class="dot" style="background:var(--green-fill)"></span><b id="g-a"></b><span>Auto</span></div><div class="tile"><span class="dot" style="background:var(--orange-fill)"></span><b id="g-r"></b><span>Coach review</span></div><div class="tile"><span class="dot" style="background:var(--gray-fill)"></span><b id="g-d"></b><span>Unnamed</span></div></div>
+   <p class="banner" id="g-wrong"></p><p class="banner" id="g-zero"></p>
+  </div>
+ </div>
+ <div class="card"><h3 class="card-title">Auto-assigned clips per kid</h3><div class="bars">${ROSTER.map(k=>`<div class="bar-row" id="b-${k.n}"><span>#${k.n} ${k.name}</span><span class="track"><span class="fill"></span></span><span class="c"></span></div>`).join("")}</div></div>
+ <p class="fine">Data and gate logic are identical to the coach and family views. <button data-reset>Reset demo</button></p>
+</section>`}
+// Sliders update in place: the inputs are never re-rendered, so a drag keeps tracking 1:1
+function updateGate(){const st=stats();
+ SLIDERS.forEach(([k])=>{$("o-"+k).textContent=S.t[k].toFixed(2);const el=$("s-"+k);if(Number(el.value)!==S.t[k])el.value=S.t[k]});
+ $("g-a").textContent=st.a;$("g-r").textContent=st.r;$("g-d").textContent=st.d;
+ const w=$("g-wrong");w.className="banner "+(st.wrong?"o":"g");w.innerHTML=`Known wrong-kid clips that would auto-send: <b class="num-t">${st.wrong}</b>`;
+ const z=$("g-zero");z.className="banner "+(st.zero.length>1?"o":"g");z.style.cssText=st.zero.length>1?"":"background:var(--fill);color:var(--label-2)";
+ z.innerHTML=`Kids with zero clips before review: <b>${st.zero.map(k=>"#"+k.n+" "+first(k)).join(", ")||"none"}</b>`;
+ ROSTER.forEach(k=>{const row=$("b-"+k.n),n=st.per[k.n];row.classList.toggle("zero",!n);row.querySelector(".fill").style.transform=`scaleX(${Math.min(n/3,1)})`;row.querySelector(".c").textContent=n})}
+
+/* ---------- Render + motion ---------- */
+function enter(el,kind){if(!el||!kind)return;
+ if(reduce.matches){el.animate([{opacity:0},{opacity:1}],{duration:160,easing:"ease"});return}
+ const from={push:"translateX(32px)",pop:"translateX(-32px)",advance:"translateX(14px)"}[kind];
+ el.animate([{transform:from,opacity:0},{transform:"none",opacity:1}],{duration:kind==="advance"?220:280,easing:kind==="advance"?"cubic-bezier(0.23,1,0.32,1)":"cubic-bezier(0.32,0.72,0,1)"})}
+function render(anim,focusTitle){
+ const tabs=[...document.querySelectorAll("#seg button")];
+ tabs.forEach((b,i)=>{const on=b.dataset.tab===S.tab;b.setAttribute("aria-current",on?"page":"false");if(on)$("seg").style.setProperty("--i",i)});
+ const m=$("main");FID=0;
+ if(S.tab==="gate"){m.innerHTML=Gate();updateGate();return}
+ m.innerHTML=`<div class="stage"><div class="device"><div class="screen" id="screen">${S.tab==="coach"?Coach[S.screen]():Family()}</div></div>${Guide()}</div>`;
+ enter($("screen"),anim);
+ if(focusTitle){const t=document.querySelector("#screen .title");if(t)t.focus({preventScroll:true})}}
+function toTop(){const d=document.querySelector(".device");if(d&&d.getBoundingClientRect().top<70)window.scrollTo({top:0,behavior:reduce.matches?"auto":"smooth"})}
+function go(screen){if(!SCREENS.includes(screen))return;const dir=SCREENS.indexOf(screen)>=SCREENS.indexOf(S.screen)?"push":"pop";
+ if(screen===S.screen&&S.tab==="coach")return;S.screen=screen;render(dir,true);toTop()}
+function setTab(tab){if(tab===S.tab)return;S.tab=tab;render(null);window.scrollTo({top:0})}
+
+/* ---------- Undo-able actions ---------- */
+const snapshot=()=>JSON.stringify({d:S.decisions,r:S.reported,b:S.blocked,qi:S.qi});
+function restore(s){const o=JSON.parse(s);S.decisions=o.d;S.reported=o.r;S.blocked=o.b;S.qi=o.qi;render(null)}
+let hudUndo=null,hudT=0;
+function toast(msg,undo){$("hud-msg").textContent=msg;hudUndo=undo||null;$("hud-undo").hidden=!undo;$("hud").classList.add("show");
+ clearTimeout(hudT);hudT=setTimeout(hideHud,undo?5000:2600)}
+function hideHud(){$("hud").classList.remove("show");hudUndo=null}
+function undo(){if(!hudUndo)return;const u=hudUndo;hideHud();u()}
+
+function decide(val,viaKey){const q=queue(),c=q[S.qi];if(!c)return;const snap=snapshot();
+ S.decisions[c.id]=val==="none"||val==="skip"?val:Number(val);
+ const msg=val==="skip"?"Skipped. Left out unless you come back to it.":val==="none"?"Marked can't tell. Left unnamed.":`Assigned to ${kid(Number(val)).name}.`;
+ const nq=queue(),cur=S.qi;let next=nq.findIndex((x,i)=>i>cur&&S.decisions[x.id]===undefined);
+ if(next<0)next=nq.findIndex(x=>S.decisions[x.id]===undefined);
+ if(next>=0)S.qi=next;
+ render(!viaKey&&next>=0&&next!==cur?"advance":null);
+ toast(msg,()=>restore(snap))}
+
+function report(id,btn){const snap=snapshot(),row=btn.closest(".clip-row");
+ const commit=()=>{S.reported[id]=true;S.blocked[id+"-"+S.kid]=true;delete S.decisions[id];render(null);toast("Removed from this reel. Sent to the coach to fix.",()=>restore(snap))};
+ if(!row||reduce.matches){commit();return}
+ btn.disabled=true;const h=row.offsetHeight;row.style.overflow="hidden";
+ row.animate([{height:h+"px",opacity:1},{height:"0px",opacity:0,paddingTop:"0px",paddingBottom:"0px",minHeight:"0px"}],{duration:240,easing:"cubic-bezier(0.23,1,0.32,1)",fill:"forwards"}).finished.then(commit)}
+
+/* ---------- Roster sheet: spring-driven, drag to dismiss ---------- */
+const sheet=$("sheet"),scrim=$("scrim");let sheetY=0,sheetH=0,sheetOpen=false,sheetReturn=null,raf=0;
+function setY(y){sheetY=y;sheet.style.transform=`translate3d(0,${y}px,0)`;scrim.style.opacity=String(Math.max(0,Math.min(1,1-y/sheetH)))}
+// Critically damped by default; response in seconds (Apple's damping/response model)
+function springTo(to,{v=0,response=.35,damping=1}={},done){cancelAnimationFrame(raf);let x=sheetY,vel=v,last=performance.now();
+ const k=(2*Math.PI/response)**2,c=4*Math.PI*damping/response;
+ // Fixed small sub-steps keep the spring stable and on real time even when frames are throttled
+ const tick=now=>{const dt=Math.min((now-last)/1000,.5);last=now;const n=Math.max(1,Math.ceil(dt*240)),h=dt/n;for(let i=0;i<n;i++){const a=-k*(x-to)-c*vel;vel+=a*h;x+=vel*h}
+  if(Math.abs(x-to)<.5&&Math.abs(vel)<10){setY(to);done&&done();return}setY(x);raf=requestAnimationFrame(tick)};
+ raf=requestAnimationFrame(tick)}
+const project=(v,d=.998)=>(v/1000)*d/(1-d);
+const rubber=(o,dim,k=.55)=>(o*dim*k)/(dim+k*Math.abs(o));
+function openSheet(trigger){const q=queue(),c=q[S.qi];if(!c)return;sheetReturn=trigger;
+ const guess=kid(c.read),alt=kid(c.alt!==undefined?c.alt:partners(c.read)[0]),shown=[guess,alt].filter(Boolean).map(k=>k.n),d=S.decisions[c.id];
+ $("sheet-list").innerHTML=`<p class="gf" style="margin:4px 4px 10px">${c.ev} at ${c.min}. Pick who it really is.</p><div class="group">${ROSTER.filter(k=>!shown.includes(k.n)&&!S.blocked[c.id+"-"+k.n]).map(k=>`<button class="row choice" data-pick="${k.n}" aria-pressed="${d===k.n}"><span class="jn">${k.n}</span><span class="t"><b>${k.name}</b></span><span class="end">${I.tick}</span></button>`).join("")}</div>`;
+ scrim.hidden=false;sheet.hidden=false;sheetH=sheet.offsetHeight;sheetOpen=true;$("main").inert=true;$("bar").inert=true;
+ if(reduce.matches){setY(0);sheet.animate([{opacity:0},{opacity:1}],{duration:200});scrim.animate([{opacity:0},{opacity:1}],{duration:200})}
+ else{setY(sheetH+24);springTo(0);setTimeout(()=>{if(sheetOpen&&!drag&&sheetY>sheetH*.9){cancelAnimationFrame(raf);setY(0)}},900)}
+ (sheet.querySelector('[aria-pressed="true"]')||sheet.querySelector(".sheet-list .choice")).focus({preventScroll:true})}
+function closeSheet(v=0,after){if(!sheetOpen)return;sheetOpen=false;
+ let done=false;
+ const finish=()=>{if(done)return;done=true;clearTimeout(fallback);cancelAnimationFrame(raf);sheet.hidden=true;scrim.hidden=true;$("main").inert=false;$("bar").inert=false;if(after)after();else if(sheetReturn&&sheetReturn.isConnected)sheetReturn.focus({preventScroll:true})};
+ // If frames are paused (a backgrounded tab), still finish so the page never stays locked behind the sheet
+ const fallback=setTimeout(finish,900);
+ if(reduce.matches){Promise.all([sheet.animate([{opacity:1},{opacity:0}],{duration:160}).finished,scrim.animate([{opacity:1},{opacity:0}],{duration:160}).finished]).then(finish);return}
+ springTo(sheetH+24,{v,response:.3},finish)}
+let drag=null;
+function dragStart(e){if(!sheetOpen||e.target.closest("button"))return;cancelAnimationFrame(raf);e.currentTarget.setPointerCapture(e.pointerId);
+ drag={id:e.pointerId,y0:e.clientY,off:sheetY,hist:[{y:e.clientY,t:e.timeStamp}]}}
+function dragMove(e){if(!drag||e.pointerId!==drag.id)return;const raw=drag.off+(e.clientY-drag.y0);
+ setY(raw<0?-rubber(-raw,sheetH):raw);drag.hist.push({y:e.clientY,t:e.timeStamp});drag.hist=drag.hist.filter(p=>e.timeStamp-p.t<100)}
+function dragEnd(e){if(!drag||e.pointerId!==drag.id)return;const h=drag.hist,a=h[0],b=h[h.length-1];drag=null;
+ const v=b.t>a.t?(b.y-a.y)/(b.t-a.t)*1000:0;
+ if(sheetY+project(v)>sheetH*.5)closeSheet(v);else springTo(0,{v,response:.3,damping:.8})}
+[$("grab"),$("sheet-head")].forEach(el=>{el.addEventListener("pointerdown",dragStart);el.addEventListener("pointermove",dragMove);el.addEventListener("pointerup",dragEnd);el.addEventListener("pointercancel",dragEnd)});
+scrim.addEventListener("click",()=>closeSheet());
+
+/* ---------- Events ---------- */
+document.addEventListener("click",e=>{const t=e.target.closest("[data-tab],[data-go],[data-qi],[data-pick],[data-sheet],[data-report],[data-reset],[data-defaults],[data-close],#hud-undo");if(!t)return;
+ if(t.id==="hud-undo"){undo();return}
+ if(t.hasAttribute("data-close")){closeSheet();return}
+ if(t.dataset.pick){if(sheetOpen){const v=t.dataset.pick;closeSheet(0,()=>{decide(v);const f=document.querySelector("#screen .choice");if(f)f.focus({preventScroll:true})})}else decide(t.dataset.pick);return}
+ if(t.hasAttribute("data-sheet")){openSheet(t);return}
+ if(t.dataset.report){report(Number(t.dataset.report),t);return}
+ if(t.hasAttribute("data-reset")){S=fresh();hideHud();render(null);window.scrollTo({top:0});return}
+ if(t.hasAttribute("data-defaults")){S.t={...DEFAULTS};updateGate();toast("Gate reset to spec defaults.");return}
+ if(t.dataset.kid)S.kid=Number(t.dataset.kid);
+ if(t.dataset.tab&&t.dataset.go){S.tab=t.dataset.tab;S.screen=t.dataset.go;
+   if(t.dataset.focus){const i=queue().findIndex(c=>c.id===Number(t.dataset.focus));if(i>=0)S.qi=i}
+   render(null,true);window.scrollTo({top:0});return}
+ if(t.dataset.tab){setTab(t.dataset.tab);return}
+ if(t.dataset.go){go(t.dataset.go);return}
+ if(t.dataset.qi){S.qi=Number(t.dataset.qi);render(null)}});
+document.addEventListener("change",e=>{if(e.target.id==="kidsel"){S.kid=Number(e.target.value);render(null)}});
+document.addEventListener("input",e=>{const k=e.target.dataset&&e.target.dataset.k;if(!k)return;S.t[k]=Number(e.target.value);
+ if(S.t.floor>Math.min(S.t.auto,S.t.autoConf))S.t.floor=Math.min(S.t.auto,S.t.autoConf);updateGate()});
+document.addEventListener("keydown",e=>{
+ if(sheetOpen){if(e.key==="Escape"){e.preventDefault();closeSheet()}
+  else if(e.key==="Tab"){const f=[...sheet.querySelectorAll("button")];const i=f.indexOf(document.activeElement);
+   if(e.shiftKey&&i<=0){e.preventDefault();f[f.length-1].focus()}else if(!e.shiftKey&&i===f.length-1){e.preventDefault();f[0].focus()}}
+  return}
+ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"&&hudUndo){e.preventDefault();undo();return}
+ if(e.metaKey||e.ctrlKey||e.altKey||S.tab!=="coach"||S.screen!=="review"||/^(SELECT|INPUT|TEXTAREA)$/.test(e.target.tagName))return;
+ const opts=[...document.querySelectorAll("#screen .choice[data-pick]")];
+ if(e.key==="1"||e.key==="2"){const b=opts[Number(e.key)-1];if(b)decide(b.dataset.pick,true)}
+ else if(e.key.toLowerCase()==="n")decide("none",true);else if(e.key.toLowerCase()==="s")decide("skip",true)});
+addEventListener("scroll",()=>$("bar").classList.toggle("edge",scrollY>4),{passive:true});
+render(null);
+</script>
+</body></html>
